@@ -3,8 +3,9 @@ locals {
   # plus 15% overhead for Firecracker/jailer bookkeeping. Rounded up.
   hugepages = ceil(var.sessions * var.per_session_ram_mb / 2 * 1.15)
 
-  # tmpfs snapshot cache ~ 1x total sandbox RAM (GB), capped for sanity.
-  snapshot_cache_gb = min(96, ceil(var.sessions * var.per_session_ram_mb / 1024))
+  # tmpfs snapshot cache. Huge pages already hard-reserve most RAM, so keep this
+  # to ~1/4 of total sandbox RAM (tmpfs is a lazy ceiling) and cap it.
+  snapshot_cache_gb = min(32, max(4, ceil(var.sessions * var.per_session_ram_mb / 1024 / 4)))
 
   # NBD device pool: each active NBD-backed sandbox needs a device; give margin.
   nbd_pool_size = max(64, var.sessions * 2)

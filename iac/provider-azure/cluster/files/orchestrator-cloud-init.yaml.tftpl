@@ -1,0 +1,42 @@
+#cloud-config
+# E2B orchestrator node: Nomad client + orchestrator + Firecracker.
+package_update: true
+packages: [git, make, curl, jq, unzip, build-essential, ca-certificates, gnupg, qemu-utils, cpu-checker, docker.io]
+
+write_files:
+  - path: /etc/e2b/node.env
+    permissions: '0640'
+    content: |
+      NODE_ROLE=orchestrator
+      DATA_IP=${data_ip}
+      CONTROL_IP=${control_ip}
+      PG_USER=${pg_user}
+      PG_PASSWORD=${pg_password}
+      CH_USER=${ch_user}
+      CH_PASSWORD=${ch_password}
+      AZURE_STORAGE_ACCOUNT=${storage_account}
+      AZURE_STORAGE_KEY=${storage_key}
+      TEMPLATE_BUCKET_NAME=${template_bucket}
+      BUILD_CACHE_BUCKET_NAME=${build_cache_bucket}
+      AZURE_ACR_LOGIN_SERVER=${acr_login_server}
+      AZURE_DOCKER_REPOSITORY_NAME=${acr_repository}
+      AZURE_ACR_USERNAME=${acr_username}
+      AZURE_ACR_PASSWORD=${acr_password}
+      REPO_URL=${repo_url}
+      REPO_REF=${repo_ref}
+      NOMAD_VERSION=${nomad_version}
+
+  - path: /etc/modules-load.d/e2b.conf
+    permissions: '0644'
+    content: |
+      kvm
+      nbd
+
+  - path: /opt/e2b/bootstrap.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${bootstrap_b64}
+
+runcmd:
+  - systemctl enable --now docker
+  - /bin/bash /opt/e2b/bootstrap.sh 2>&1 | tee -a /var/log/e2b-bootstrap.log

@@ -7,6 +7,13 @@ set -x
 
 source /etc/e2b/sizing.env
 
+# cloud-init runcmd runs as root WITHOUT a login environment, so $HOME is unset.
+# Go needs it for GOPATH / module cache / sumdb, and sub-makes inherit these.
+export HOME=/root
+export GOPATH=/root/go
+export GOMODCACHE=/root/go/pkg/mod
+mkdir -p "$GOPATH"
+
 GO_VERSION="1.26.3"
 REPO_DIR="/opt/e2b/e2b-infra"
 DATA_DIR="/opt/e2b/data"
@@ -107,6 +114,10 @@ git pull --ff-only || true
 if [[ ! -f "$MARKER_DIR/artifacts.done" ]]; then
   make download-public-kernels
   make download-public-firecrackers
+  # busybox is fetched by a separate target (not covered by DEV-LOCAL.md); the
+  # orchestrator needs it to populate the sandbox rootfs, else template builds
+  # fail with "error reading busybox file .../.busybox/<ver>/<arch>/busybox".
+  make -C packages/orchestrator fetch-busybox
   touch "$MARKER_DIR/artifacts.done"
 fi
 

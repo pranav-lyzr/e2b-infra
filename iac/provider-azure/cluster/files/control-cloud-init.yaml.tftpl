@@ -1,0 +1,37 @@
+#cloud-config
+# E2B control node: Nomad server + API + client-proxy. Points at the data tier.
+package_update: true
+packages: [git, make, curl, jq, unzip, build-essential, ca-certificates, gnupg, docker.io, nodejs, npm]
+
+write_files:
+  - path: /etc/e2b/node.env
+    permissions: '0640'
+    content: |
+      NODE_ROLE=control
+      DATA_IP=${data_ip}
+      CONTROL_IP=${control_ip}
+      PG_USER=${pg_user}
+      PG_PASSWORD=${pg_password}
+      CH_USER=${ch_user}
+      CH_PASSWORD=${ch_password}
+      AZURE_STORAGE_ACCOUNT=${storage_account}
+      AZURE_STORAGE_KEY=${storage_key}
+      TEMPLATE_BUCKET_NAME=${template_bucket}
+      BUILD_CACHE_BUCKET_NAME=${build_cache_bucket}
+      AZURE_ACR_LOGIN_SERVER=${acr_login_server}
+      AZURE_DOCKER_REPOSITORY_NAME=${acr_repository}
+      AZURE_ACR_USERNAME=${acr_username}
+      AZURE_ACR_PASSWORD=${acr_password}
+      REPO_URL=${repo_url}
+      REPO_REF=${repo_ref}
+      NOMAD_VERSION=${nomad_version}
+
+  - path: /opt/e2b/bootstrap.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${bootstrap_b64}
+
+runcmd:
+  - usermod -aG docker ${admin_username} || true
+  - systemctl enable --now docker
+  - /bin/bash /opt/e2b/bootstrap.sh 2>&1 | tee -a /var/log/e2b-bootstrap.log
