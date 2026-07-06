@@ -1,0 +1,20 @@
+[Unit]
+Description=E2B API server
+After=network-online.target e2b-infra.service e2b-orchestrator.service
+Wants=network-online.target
+Requires=e2b-infra.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/e2b/e2b-infra/packages/api
+EnvironmentFile=/opt/e2b/e2b-infra/packages/api/.env.local
+Environment=NODE_ID=%H
+# Binds 0.0.0.0:3000 — reachable from the SDK via the VM public IP (NSG-gated).
+ExecStart=/opt/e2b/e2b-infra/packages/api/bin/api --port 3000
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

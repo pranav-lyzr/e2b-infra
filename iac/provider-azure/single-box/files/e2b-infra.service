@@ -1,0 +1,19 @@
+[Unit]
+Description=E2B backing infra (Postgres, ClickHouse, Redis + observability) via docker compose
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/e2b/e2b-infra/packages/local-dev
+# Bring the stack up detached. `make local-infra` runs it in the foreground with
+# --abort-on-container-failure; for a service we want it backgrounded.
+ExecStartPre=/usr/bin/make -C /opt/e2b/e2b-infra/packages/local-dev clickhouse-config-generated.xml
+ExecStart=/usr/bin/docker compose --file docker-compose.yaml up -d
+ExecStop=/usr/bin/docker compose --file docker-compose.yaml down
+TimeoutStartSec=600
+
+[Install]
+WantedBy=multi-user.target

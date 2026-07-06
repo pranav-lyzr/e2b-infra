@@ -1,0 +1,19 @@
+[Unit]
+Description=E2B client proxy (routes SDK traffic to sandboxes; listens on 3002)
+After=network-online.target e2b-infra.service e2b-api.service
+Wants=network-online.target
+Requires=e2b-infra.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/e2b/e2b-infra/packages/client-proxy
+EnvironmentFile=/opt/e2b/e2b-infra/packages/client-proxy/.env.local
+Environment=NODE_ID=%H
+ExecStart=/opt/e2b/e2b-infra/packages/client-proxy/bin/client-proxy
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target

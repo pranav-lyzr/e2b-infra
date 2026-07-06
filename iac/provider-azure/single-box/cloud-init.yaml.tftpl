@@ -1,0 +1,73 @@
+#cloud-config
+# E2B single-box (local providers) bootstrap for Azure.
+# Installs prerequisites, tunes the host for Firecracker, then runs bootstrap.sh
+# which clones + builds + starts the full stack. Watch: /var/log/e2b-bootstrap.log
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - git
+  - make
+  - curl
+  - jq
+  - unzip
+  - build-essential
+  - pkg-config
+  - ca-certificates
+  - gnupg
+  - qemu-utils
+  - cpu-checker
+  - docker.io
+  - docker-compose-v2
+  - nodejs
+  - npm
+
+write_files:
+  - path: /etc/e2b/sizing.env
+    permissions: '0644'
+    encoding: b64
+    content: ${sizing_env_b64}
+
+  - path: /opt/e2b/bootstrap.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${bootstrap_b64}
+
+  - path: /opt/e2b/env-overrides.sh
+    permissions: '0755'
+    encoding: b64
+    content: ${env_overrides_b64}
+
+  - path: /etc/systemd/system/e2b-infra.service
+    permissions: '0644'
+    encoding: b64
+    content: ${svc_infra_b64}
+
+  - path: /etc/systemd/system/e2b-orchestrator.service
+    permissions: '0644'
+    encoding: b64
+    content: ${svc_orchestrator_b64}
+
+  - path: /etc/systemd/system/e2b-api.service
+    permissions: '0644'
+    encoding: b64
+    content: ${svc_api_b64}
+
+  - path: /etc/systemd/system/e2b-client-proxy.service
+    permissions: '0644'
+    encoding: b64
+    content: ${svc_client_proxy_b64}
+
+  # Persist host tuning across reboots.
+  - path: /etc/modules-load.d/e2b.conf
+    permissions: '0644'
+    content: |
+      kvm
+      nbd
+
+runcmd:
+  - set -x
+  - usermod -aG docker ${admin_username} || true
+  - systemctl enable --now docker
+  - /bin/bash /opt/e2b/bootstrap.sh 2>&1 | tee -a /var/log/e2b-bootstrap.log

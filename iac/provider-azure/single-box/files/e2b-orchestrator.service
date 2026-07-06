@@ -1,0 +1,24 @@
+[Unit]
+Description=E2B orchestrator + template manager (runs Firecracker microVMs)
+After=network-online.target e2b-infra.service docker.service
+Wants=network-online.target
+Requires=e2b-infra.service
+
+[Service]
+Type=simple
+# Root required: /dev/kvm, TAP networking, cgroups, NBD mounts.
+User=root
+WorkingDirectory=/opt/e2b/e2b-infra/packages/orchestrator
+EnvironmentFile=/opt/e2b/e2b-infra/packages/orchestrator/.env.local
+Environment=NODE_ID=%H
+Environment=GOTRACEBACK=crash
+Environment=GODEBUG=madvdontneed=1
+ExecStartPre=/bin/mkdir -p /opt/e2b/e2b-infra/packages/orchestrator/.data/test-volume
+ExecStart=/opt/e2b/e2b-infra/packages/orchestrator/bin/orchestrator
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=1048576
+LimitMEMLOCK=infinity
+
+[Install]
+WantedBy=multi-user.target

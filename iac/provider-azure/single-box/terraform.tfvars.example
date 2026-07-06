@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars and fill in. See variables.tf for all options.
+
+subscription_id = "00000000-0000-0000-0000-000000000000"
+location        = "eastus"
+
+# SSH key you will use to reach the box (contents of ~/.ssh/id_ed25519.pub).
+ssh_public_key = "ssh-ed25519 AAAA... you@host"
+
+# Lock inbound to your egress. Do NOT leave 0.0.0.0/0 once you go past testing.
+admin_source_cidr = "203.0.113.10/32"
+
+# --- Capacity: 20 concurrent sessions ---
+sessions           = 20
+per_session_vcpu   = 2
+per_session_ram_mb = 1024
+
+# 16 vCPU / 64 GB is the minimum for ~20 sessions. Bump to Standard_D32s_v6 for
+# comfortable headroom while also building templates. MUST support nested virt.
+vm_size = "Standard_D16s_v6"
+
+# Storage for local template/build/snapshot data.
+data_disk_size_gb = 256
+
+# The fork to build on the box.
+repo_url = "https://github.com/pranav-lyzr/e2b-infra.git"
+repo_ref = "main"
