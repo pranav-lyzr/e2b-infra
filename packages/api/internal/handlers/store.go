@@ -172,7 +172,13 @@ func NewAPIStore(ctx context.Context, tel *telemetry.Client, redisClient redis.U
 			logger.L().Fatal(ctx, "Initializing Nomad client", zap.Error(nomadErr))
 		}
 		nodeDiscovery = orchdiscovery.NewNomad(nomadClient, "default")
-		templateBuilderDiscovery = clustersdiscovery.NewLocalDiscovery(consts.LocalClusterID, nomadClient)
+		if config.NomadTemplateBuilderDiscovery == cfg.NomadTemplateBuilderDiscoveryNodes {
+			// Systemd-managed orchestrators (no template-manager Nomad job):
+			// every ready node in the pool runs the template-manager service.
+			templateBuilderDiscovery = clustersdiscovery.NewNomadNodesDiscovery(consts.LocalClusterID, nomadClient, "default")
+		} else {
+			templateBuilderDiscovery = clustersdiscovery.NewLocalDiscovery(consts.LocalClusterID, nomadClient)
+		}
 	}
 
 	queryLogsProvider, err := loki.NewLokiQueryProvider(config.LokiURL, config.LokiUser, config.LokiPassword)

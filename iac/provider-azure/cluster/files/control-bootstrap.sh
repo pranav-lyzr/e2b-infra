@@ -73,6 +73,9 @@ upsert "$A" REDIS_URL "$DATA_IP:6379"
 upsert "$A" ENVIRONMENT "prod"
 upsert "$A" SERVICE_DISCOVERY_PROVIDER "nomad"
 upsert "$A" NOMAD_ADDRESS "http://localhost:4646"
+# Orchestrator/template-manager run as systemd units (not Nomad jobs), so find
+# template builders via the Nomad node list instead of job allocations.
+upsert "$A" NOMAD_TEMPLATE_BUILDER_DISCOVERY "nodes"
 
 P="$REPO_DIR/packages/client-proxy/.env.local"
 upsert "$P" REDIS_URL "$DATA_IP:6379"

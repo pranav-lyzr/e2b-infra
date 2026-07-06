@@ -26,6 +26,19 @@ const (
 	ServiceDiscoveryProviderLocal = "local"
 )
 
+const (
+	// NomadTemplateBuilderDiscoveryAllocations (default) finds template
+	// builders by listing Nomad template-manager job allocations — the
+	// upstream deploy where template-manager runs as a Nomad job.
+	NomadTemplateBuilderDiscoveryAllocations = "allocations"
+	// NomadTemplateBuilderDiscoveryNodes finds template builders by listing
+	// ready Nomad nodes in the configured pool. Use for deploys where the
+	// orchestrator binary (with ORCHESTRATOR_SERVICES including
+	// template-manager) runs as a systemd service on every client node, so no
+	// template-manager allocations exist.
+	NomadTemplateBuilderDiscoveryNodes = "nodes"
+)
+
 type Config struct {
 	AdminToken string `env:"ADMIN_TOKEN"`
 
@@ -47,6 +60,12 @@ type Config struct {
 
 	NomadAddress string `env:"NOMAD_ADDRESS" envDefault:"http://localhost:4646"`
 	NomadToken   string `env:"NOMAD_TOKEN"`
+
+	// NomadTemplateBuilderDiscovery selects how template builders are found when
+	// ServiceDiscoveryProvider=nomad. Allowed values:
+	//   "allocations" (default) - list Nomad template-manager job allocations.
+	//   "nodes"                 - list ready Nomad nodes in the pool (systemd-managed orchestrators).
+	NomadTemplateBuilderDiscovery string `env:"NOMAD_TEMPLATE_BUILDER_DISCOVERY" envDefault:"allocations"`
 
 	// LocalOrchestratorAddress is the "host:port" address of a statically
 	// configured orchestrator instance. Required when
@@ -236,6 +255,10 @@ func Parse() (Config, error) {
 			FailureConditionInvalidServiceDiscoveryProvider,
 			fmt.Sprintf("invalid service discovery provider: %s", config.ServiceDiscoveryProvider),
 		)
+	}
+
+	if !slices.Contains([]string{NomadTemplateBuilderDiscoveryAllocations, NomadTemplateBuilderDiscoveryNodes}, config.NomadTemplateBuilderDiscovery) {
+		return config, fmt.Errorf("invalid Nomad template builder discovery: %s", config.NomadTemplateBuilderDiscovery)
 	}
 
 	if err := config.VolumesToken.validate(); err != nil {
