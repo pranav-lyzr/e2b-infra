@@ -72,6 +72,8 @@
   <h1><span>e2b</span> cluster dashboard</h1>
   <div id="cluster-info"></div>
   <div class="spacer"></div>
+  <input id="new-template" value="base" title="template alias for new sandboxes"
+         style="width:110px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px">
   <button class="primary" onclick="createSandbox()">+ sandbox</button>
   <button onclick="refresh()">refresh</button>
 </header>
@@ -112,6 +114,12 @@ let sandboxes = [], current = null, curPath = "/";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function fmtDur(ms) {
+  if (ms == null || isNaN(ms)) return "?";
+  if (ms <= 0) return "expired";
+  const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : m ? `${m}m ${s % 60}s` : `${s}s`;
+}
 async function api(path, opts) {
   const r = await fetch(path, opts);
   if (!r.ok) throw new Error((await r.json().catch(()=>({detail:r.statusText}))).detail || r.statusText);
@@ -128,7 +136,8 @@ async function refresh() {
   sb.innerHTML = sandboxes.map(s => `
     <div class="sbx-item ${current === s.sandbox_id ? "active" : ""}" onclick="select('${s.sandbox_id}')">
       <div class="sbx-id">${esc(s.sandbox_id)}<span class="chip ${esc(s.state)}">${esc(s.state)}</span></div>
-      <div class="sbx-meta">${esc(s.template_id)} · ${s.cpu_count} vCPU · ${s.memory_mb} MB · started ${s.started_at ? new Date(s.started_at).toLocaleTimeString() : "?"}</div>
+      <div class="sbx-meta">${esc(s.template_id)} · ${s.cpu_count} vCPU · ${s.memory_mb} MB</div>
+      <div class="sbx-meta">started ${s.started_at ? new Date(s.started_at).toLocaleTimeString() : "?"}${s.state === "running" && s.end_at ? ` · ends in ${fmtDur(new Date(s.end_at) - Date.now())}` : ""}</div>
     </div>`).join("");
 }
 
@@ -158,16 +167,22 @@ function showTab(name) {
 
 async function loadOverview() {
   const s = sbx(); if (!s) return;
+  const now = Date.now();
+  const total = s.started_at && s.end_at ? new Date(s.end_at) - new Date(s.started_at) : null;
+  const left = s.end_at ? new Date(s.end_at) - now : null;
   let html = `<dl class="kv">
     <dt>sandbox id</dt><dd>${esc(s.sandbox_id)}</dd>
     <dt>state</dt><dd>${esc(s.state)}</dd>
     <dt>template</dt><dd>${esc(s.template_id)}</dd>
-    <dt>resources</dt><dd>${s.cpu_count} vCPU · ${s.memory_mb} MB</dd>
-    <dt>started</dt><dd>${esc(s.started_at)}</dd>
-    <dt>times out</dt><dd>${esc(s.end_at)}</dd>
+    <dt>cpu</dt><dd>${s.cpu_count} vCPU</dd>
+    <dt>memory</dt><dd>${s.memory_mb >= 1024 ? (s.memory_mb/1024).toFixed(1) + " GB" : s.memory_mb + " MB"} (${s.memory_mb} MB)</dd>
+    <dt>disk</dt><dd id="disk-figures">${s.state === "running" ? "measuring…" : "n/a (paused)"}</dd>
+    <dt>started</dt><dd>${s.started_at ? new Date(s.started_at).toLocaleString() : "?"}</dd>
+    <dt>timeout</dt><dd>${total != null ? fmtDur(total) + " total" : "?"} · ${left != null ? fmtDur(left) + " remaining" : "?"} (ends ${s.end_at ? new Date(s.end_at).toLocaleTimeString() : "?"})</dd>
     <dt>metadata</dt><dd>${esc(JSON.stringify(s.metadata))}</dd>
   </dl><div class="loading" id="m-loading">loading metrics…</div><div id="m-table"></div>`;
   $("tab-overview").innerHTML = html;
+  if (s.state === "running") loadDisk();
   try {
     const m = await api(`/api/sandboxes/${current}/metrics`);
     const rows = Array.isArray(m) ? m : (m.metrics || []);
@@ -176,6 +191,17 @@ async function loadOverview() {
     $("m-table").innerHTML = `<table class="metrics"><tr><th>time</th><th>cpu %</th><th>mem used MB</th><th>mem total MB</th></tr>` +
       rows.slice(-12).map(r => `<tr><td>${esc((r.timestamp||"").slice(11,19))}</td><td>${(r.cpuUsedPct ?? r.cpu_used_pct ?? 0).toFixed(1)}</td><td>${Math.round((r.memUsed ?? r.mem_used ?? 0)/1048576)}</td><td>${Math.round((r.memTotal ?? r.mem_total ?? 0)/1048576)}</td></tr>`).join("") + "</table>";
   } catch (e) { const el = $("m-loading"); if (el) el.textContent = "metrics unavailable: " + e.message; }
+}
+
+async function loadDisk() {
+  try {
+    const r = await api(`/api/sandboxes/${current}/exec`, { method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({cmd: "df -BM --output=size,used,avail / | tail -1"}) });
+    const el = $("disk-figures"); if (!el) return;
+    const [size, used, avail] = (r.stdout || "").trim().split(/\s+/).map(v => parseInt(v));
+    el.textContent = isNaN(size) ? "unavailable" :
+      `${(size/1024).toFixed(1)} GB total · ${(used/1024).toFixed(1)} GB used · ${(avail/1024).toFixed(1)} GB free`;
+  } catch (e) { const el = $("disk-figures"); if (el) el.textContent = "unavailable: " + e.message; }
 }
 
 async function loadFiles(path) {
@@ -238,7 +264,7 @@ async function loadLogs() {
 
 async function createSandbox() {
   const btn = event.target; btn.disabled = true; btn.textContent = "creating…";
-  try { const r = await api("/api/sandboxes", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"}); await refresh(); select(r.sandbox_id); }
+  try { const r = await api("/api/sandboxes", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({template: $("new-template").value.trim() || "base"})}); await refresh(); select(r.sandbox_id); }
   catch (e) { alert(e.message); }
   btn.disabled = false; btn.textContent = "+ sandbox";
 }

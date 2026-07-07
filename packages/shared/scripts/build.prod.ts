@@ -9,7 +9,8 @@ async function main() {
 
   await Template.build(template, {
     alias: "base",
-    memoryMB: 512,
+    cpuCount: 4,
+    memoryMB: 4096,
     skipCache: !useCache,
     onBuildLogs: (it) => console.log(it.toString()),
   });
