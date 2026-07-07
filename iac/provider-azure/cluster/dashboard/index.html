@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E2B Cluster Dashboard</title>
+<style>
+  :root {
+    --bg: #0d0f12; --panel: #15181d; --panel2: #1b1f26; --border: #2a2f38;
+    --text: #e6e8eb; --muted: #8b929e; --accent: #ff8800; --accent2: #ffb355;
+    --green: #4ade80; --red: #f87171; --amber: #fbbf24; --blue: #60a5fa;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; height: 100vh; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  header h1 { font-size: 15px; font-weight: 600; }
+  header h1 span { color: var(--accent); }
+  #cluster-info { color: var(--muted); font-size: 12px; font-family: var(--mono); }
+  header .spacer { flex: 1; }
+  button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 13px; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #14100a; font-weight: 600; border-color: var(--accent); }
+  button.danger:hover { border-color: var(--red); color: var(--red); }
+  main { flex: 1; display: flex; min-height: 0; }
+  #sidebar { width: 320px; border-right: 1px solid var(--border); overflow-y: auto; background: var(--panel); flex-shrink: 0; }
+  .sbx-item { padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .sbx-item:hover { background: var(--panel2); }
+  .sbx-item.active { background: var(--panel2); border-left: 3px solid var(--accent); padding-left: 13px; }
+  .sbx-id { font-family: var(--mono); font-size: 12px; }
+  .sbx-meta { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .chip { display: inline-block; font-size: 10px; padding: 1px 8px; border-radius: 10px; margin-left: 6px; vertical-align: 1px; }
+  .chip.running { background: rgba(74,222,128,.15); color: var(--green); }
+  .chip.paused { background: rgba(251,191,36,.15); color: var(--amber); }
+  #empty { padding: 40px 20px; color: var(--muted); text-align: center; }
+  #detail { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #detail-header { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
+  #detail-title { font-family: var(--mono); font-size: 14px; }
+  nav.tabs { display: flex; gap: 2px; padding: 0 18px; border-bottom: 1px solid var(--border); background: var(--panel); }
+  nav.tabs button { border: none; background: none; padding: 9px 14px; color: var(--muted); border-bottom: 2px solid transparent; border-radius: 0; }
+  nav.tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab-body { flex: 1; overflow: auto; padding: 16px 18px; min-height: 0; }
+  /* files */
+  #crumbs { font-family: var(--mono); font-size: 12px; margin-bottom: 10px; color: var(--muted); }
+  #crumbs a { color: var(--accent2); cursor: pointer; text-decoration: none; }
+  .file-row { display: flex; gap: 10px; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-family: var(--mono); font-size: 13px; }
+  .file-row:hover { background: var(--panel2); }
+  .file-row .icon { width: 18px; text-align: center; }
+  #file-view { margin-top: 14px; }
+  #file-view pre { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-size: 12px; overflow: auto; max-height: 50vh; white-space: pre-wrap; }
+  #file-view .fv-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  /* terminal */
+  #term-out { background: #0a0c0e; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: var(--mono); font-size: 12.5px; height: calc(100% - 60px); overflow-y: auto; white-space: pre-wrap; }
+  #term-out .cmd { color: var(--accent2); }
+  #term-out .err { color: var(--red); }
+  #term-form { display: flex; gap: 8px; margin-top: 10px; }
+  #term-input { flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-family: var(--mono); font-size: 13px; padding: 7px 10px; }
+  #term-input:focus { outline: none; border-color: var(--accent); }
+  /* overview / metrics */
+  .kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 14px; font-size: 13px; max-width: 640px; }
+  .kv dt { color: var(--muted); } .kv dd { font-family: var(--mono); font-size: 12.5px; }
+  table.metrics { border-collapse: collapse; margin-top: 16px; font-size: 12.5px; font-family: var(--mono); }
+  table.metrics th, table.metrics td { border: 1px solid var(--border); padding: 5px 12px; text-align: right; }
+  table.metrics th { color: var(--muted); font-weight: 500; }
+  .note { color: var(--muted); font-size: 12.5px; margin: 8px 0; max-width: 700px; }
+  .note code { font-family: var(--mono); background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
+  .loading { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>e2b</span> cluster dashboard</h1>
+  <div id="cluster-info"></div>
+  <div class="spacer"></div>
+  <button class="primary" onclick="createSandbox()">+ sandbox</button>
+  <button onclick="refresh()">refresh</button>
+</header>
+<main>
+  <div id="sidebar"><div id="empty">loading…</div></div>
+  <section id="detail">
+    <div id="detail-header" style="display:none">
+      <span id="detail-title"></span>
+      <span id="detail-chip"></span>
+      <div class="spacer" style="flex:1"></div>
+      <button id="btn-pause" onclick="pauseSbx()">pause</button>
+      <button id="btn-resume" onclick="resumeSbx()">resume</button>
+      <button class="danger" onclick="killSbx()">kill</button>
+    </div>
+    <nav class="tabs" id="tabs" style="display:none">
+      <button data-tab="overview" class="active" onclick="showTab('overview')">Overview</button>
+      <button data-tab="files" onclick="showTab('files')">Files</button>
+      <button data-tab="terminal" onclick="showTab('terminal')">Terminal</button>
+      <button data-tab="logs" onclick="showTab('logs')">Logs</button>
+    </nav>
+    <div class="tab-body" id="tab-overview"><div id="empty-detail" style="color:var(--muted);padding:40px;text-align:center">Select a sandbox — or create one.</div></div>
+    <div class="tab-body" id="tab-files" style="display:none">
+      <div id="crumbs"></div><div id="file-list"></div><div id="file-view"></div>
+    </div>
+    <div class="tab-body" id="tab-terminal" style="display:none">
+      <div id="term-out">— commands run inside the Firecracker VM via envd —
+</div>
+      <form id="term-form" onsubmit="runCmd(event)">
+        <input id="term-input" placeholder="ls -la /home/user" autocomplete="off">
+        <button class="primary">run</button>
+      </form>
+    </div>
+    <div class="tab-body" id="tab-logs"></div>
+  </section>
+</main>
+<script>
+let sandboxes = [], current = null, curPath = "/";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error((await r.json().catch(()=>({detail:r.statusText}))).detail || r.statusText);
+  return r.json();
+}
+
+async function refresh() {
+  const info = await api("/api/cluster");
+  $("cluster-info").textContent = `${info.api_url} · health ${info.api_health ?? "?"}`;
+  const data = await api("/api/sandboxes");
+  sandboxes = data.sandboxes;
+  const sb = $("sidebar");
+  if (!sandboxes.length) { sb.innerHTML = '<div id="empty">no sandboxes running or paused</div>'; return; }
+  sb.innerHTML = sandboxes.map(s => `
+    <div class="sbx-item ${current === s.sandbox_id ? "active" : ""}" onclick="select('${s.sandbox_id}')">
+      <div class="sbx-id">${esc(s.sandbox_id)}<span class="chip ${esc(s.state)}">${esc(s.state)}</span></div>
+      <div class="sbx-meta">${esc(s.template_id)} · ${s.cpu_count} vCPU · ${s.memory_mb} MB · started ${s.started_at ? new Date(s.started_at).toLocaleTimeString() : "?"}</div>
+    </div>`).join("");
+}
+
+function sbx() { return sandboxes.find(s => s.sandbox_id === current); }
+
+async function select(id) {
+  current = id; curPath = "/";
+  $("detail-header").style.display = "flex";
+  $("tabs").style.display = "flex";
+  $("detail-title").textContent = id;
+  const s = sbx();
+  $("detail-chip").innerHTML = `<span class="chip ${esc(s.state)}">${esc(s.state)}</span>`;
+  $("btn-pause").style.display = s.state === "running" ? "" : "none";
+  $("btn-resume").style.display = s.state === "paused" ? "" : "none";
+  await refresh();
+  showTab("overview");
+}
+
+function showTab(name) {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  ["overview","files","terminal","logs"].forEach(t => $("tab-" + t).style.display = t === name ? "" : "none");
+  if (name === "overview") loadOverview();
+  if (name === "files") loadFiles(curPath);
+  if (name === "logs") loadLogs();
+  if (name === "terminal") $("term-input").focus();
+}
+
+async function loadOverview() {
+  const s = sbx(); if (!s) return;
+  let html = `<dl class="kv">
+    <dt>sandbox id</dt><dd>${esc(s.sandbox_id)}</dd>
+    <dt>state</dt><dd>${esc(s.state)}</dd>
+    <dt>template</dt><dd>${esc(s.template_id)}</dd>
+    <dt>resources</dt><dd>${s.cpu_count} vCPU · ${s.memory_mb} MB</dd>
+    <dt>started</dt><dd>${esc(s.started_at)}</dd>
+    <dt>times out</dt><dd>${esc(s.end_at)}</dd>
+    <dt>metadata</dt><dd>${esc(JSON.stringify(s.metadata))}</dd>
+  </dl><div class="loading" id="m-loading">loading metrics…</div><div id="m-table"></div>`;
+  $("tab-overview").innerHTML = html;
+  try {
+    const m = await api(`/api/sandboxes/${current}/metrics`);
+    const rows = Array.isArray(m) ? m : (m.metrics || []);
+    $("m-loading").remove();
+    if (!rows.length) { $("m-table").innerHTML = '<div class="note">no metrics datapoints yet (they appear ~5s after boot)</div>'; return; }
+    $("m-table").innerHTML = `<table class="metrics"><tr><th>time</th><th>cpu %</th><th>mem used MB</th><th>mem total MB</th></tr>` +
+      rows.slice(-12).map(r => `<tr><td>${esc((r.timestamp||"").slice(11,19))}</td><td>${(r.cpuUsedPct ?? r.cpu_used_pct ?? 0).toFixed(1)}</td><td>${Math.round((r.memUsed ?? r.mem_used ?? 0)/1048576)}</td><td>${Math.round((r.memTotal ?? r.mem_total ?? 0)/1048576)}</td></tr>`).join("") + "</table>";
+  } catch (e) { const el = $("m-loading"); if (el) el.textContent = "metrics unavailable: " + e.message; }
+}
+
+async function loadFiles(path) {
+  curPath = path;
+  $("file-view").innerHTML = "";
+  const parts = path.split("/").filter(Boolean);
+  $("crumbs").innerHTML = `<a onclick="loadFiles('/')">/</a>` + parts.map((p, i) =>
+    ` <a onclick="loadFiles('/${parts.slice(0, i+1).join("/")}')">${esc(p)}</a> /`).join("");
+  $("file-list").innerHTML = '<div class="loading">listing…</div>';
+  try {
+    const data = await api(`/api/sandboxes/${current}/files?path=${encodeURIComponent(path)}`);
+    data.entries.sort((a,b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "dir" ? -1 : 1));
+    $("file-list").innerHTML = data.entries.map(e => `
+      <div class="file-row" onclick="${e.type === "dir" ? `loadFiles('${esc(e.path)}')` : `openFile('${esc(e.path)}')`}">
+        <span class="icon">${e.type === "dir" ? "📁" : "📄"}</span><span>${esc(e.name)}</span>
+      </div>`).join("") || '<div class="note">empty directory</div>';
+  } catch (e) { $("file-list").innerHTML = `<div class="note">cannot list: ${esc(e.message)}</div>`; }
+}
+
+async function openFile(path) {
+  $("file-view").innerHTML = '<div class="loading">reading…</div>';
+  try {
+    const data = await api(`/api/sandboxes/${current}/file?path=${encodeURIComponent(path)}`);
+    $("file-view").innerHTML = `<div class="fv-head">${esc(data.path)}${data.truncated ? " (truncated to 256 KB)" : ""}</div><pre>${esc(data.content)}</pre>`;
+  } catch (e) { $("file-view").innerHTML = `<div class="note">cannot read: ${esc(e.message)}</div>`; }
+}
+
+async function runCmd(ev) {
+  ev.preventDefault();
+  const inp = $("term-input"), out = $("term-out");
+  const cmd = inp.value.trim(); if (!cmd) return;
+  inp.value = "";
+  out.innerHTML += `<span class="cmd">$ ${esc(cmd)}</span>\n`;
+  out.scrollTop = out.scrollHeight;
+  try {
+    const r = await api(`/api/sandboxes/${current}/exec`, { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({cmd}) });
+    if (r.stdout) out.innerHTML += esc(r.stdout);
+    if (r.stderr) out.innerHTML += `<span class="err">${esc(r.stderr)}</span>`;
+    if (r.exit_code !== 0) out.innerHTML += `<span class="err">(exit ${r.exit_code})</span>\n`;
+  } catch (e) { out.innerHTML += `<span class="err">${esc(e.message)}</span>\n`; }
+  out.scrollTop = out.scrollHeight;
+}
+
+async function loadLogs() {
+  $("tab-logs").innerHTML = '<div class="loading">fetching…</div>';
+  const data = await api(`/api/sandboxes/${current}/logs`);
+  if (data.unavailable) {
+    $("tab-logs").innerHTML = `<div class="note">Historical sandbox logs need a log backend (Loki), which is not deployed on this cluster.<br><br>
+      You can still peek at live in-VM logs through the <b>Files</b> tab (e.g. <code>/var/log/</code>) or the <b>Terminal</b> tab
+      (e.g. <code>dmesg | tail</code>, <code>cat /var/log/syslog</code>).<br><br><span style="color:var(--muted)">detail: ${esc(data.reason)}</span></div>`;
+    return;
+  }
+  const logs = data.logs || data.logEntries || [];
+  $("tab-logs").innerHTML = logs.length
+    ? `<pre style="font-family:var(--mono);font-size:12px">${esc(logs.map(l => `${l.timestamp} ${l.line ?? l.message ?? ""}`).join("\n"))}</pre>`
+    : `<div class="note">No log entries — this cluster has no log backend (Loki) deployed, so the API returns nothing here.<br><br>
+       To peek at live in-VM logs, use the <b>Files</b> tab (e.g. <code>/var/log/</code>) or the <b>Terminal</b> tab
+       (e.g. <code>dmesg | tail</code>).</div>`;
+}
+
+async function createSandbox() {
+  const btn = event.target; btn.disabled = true; btn.textContent = "creating…";
+  try { const r = await api("/api/sandboxes", {method: "POST", headers: {"Content-Type": "application/json"}, body: "{}"}); await refresh(); select(r.sandbox_id); }
+  catch (e) { alert(e.message); }
+  btn.disabled = false; btn.textContent = "+ sandbox";
+}
+async function killSbx() { if (!confirm(`kill ${current}?`)) return; await api(`/api/sandboxes/${current}/kill`, {method:"POST"}); current = null; $("detail-header").style.display = "none"; $("tabs").style.display = "none"; ["overview","files","terminal","logs"].forEach(t => $("tab-"+t).style.display = t==="overview"?"":"none"); $("tab-overview").innerHTML = '<div style="color:var(--muted);padding:40px;text-align:center">killed.</div>'; refresh(); }
+async function pauseSbx() { await api(`/api/sandboxes/${current}/pause`, {method:"POST"}); await refresh(); select(current); }
+async function resumeSbx() { await api(`/api/sandboxes/${current}/resume`, {method:"POST"}); await refresh(); select(current); }
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>
