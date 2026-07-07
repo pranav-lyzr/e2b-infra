@@ -74,6 +74,9 @@
   <div class="spacer"></div>
   <input id="new-template" value="base" title="template alias for new sandboxes"
          style="width:110px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px">
+  <input id="new-timeout" value="10" type="number" min="1" max="60" title="timeout in minutes (tier caps at 60)"
+         style="width:52px;background:var(--panel2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:12px;padding:5px 8px">
+  <span style="color:var(--muted);font-size:12px">min</span>
   <button class="primary" onclick="createSandbox()">+ sandbox</button>
   <button onclick="refresh()">refresh</button>
 </header>
@@ -264,7 +267,7 @@ async function loadLogs() {
 
 async function createSandbox() {
   const btn = event.target; btn.disabled = true; btn.textContent = "creating…";
-  try { const r = await api("/api/sandboxes", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({template: $("new-template").value.trim() || "base"})}); await refresh(); select(r.sandbox_id); }
+  try { const r = await api("/api/sandboxes", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({template: $("new-template").value.trim() || "base", timeout: (parseInt($("new-timeout").value) || 10) * 60})}); await refresh(); select(r.sandbox_id); }
   catch (e) { alert(e.message); }
   btn.disabled = false; btn.textContent = "+ sandbox";
 }

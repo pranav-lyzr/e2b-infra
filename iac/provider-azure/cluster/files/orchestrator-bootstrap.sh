@@ -27,6 +27,11 @@ vm.nr_hugepages=6144
 vm.max_map_count=1048576
 vm.swappiness=10
 net.core.somaxconn=65535
+# The uffd handler mmaps a memfd as large as each sandbox's RAM out of
+# non-hugepage memory; with the default overcommit heuristic those mmaps
+# start failing (ENOMEM) once a few multi-GB sandboxes run per node.
+# Pages materialize lazily, so always-overcommit is the intended mode.
+vm.overcommit_memory=1
 EOF
 sysctl --system
 cat >/etc/security/limits.d/99-e2b.conf <<EOF
