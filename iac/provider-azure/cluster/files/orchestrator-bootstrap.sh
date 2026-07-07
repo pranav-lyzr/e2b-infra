@@ -93,12 +93,17 @@ upsert "$O" CLICKHOUSE_CONNECTION_STRING "clickhouse://$CH_USER:$CH_PASSWORD@$DA
 upsert "$O" REDIS_URL "$DATA_IP:6379"
 upsert "$O" NBD_POOL_SIZE "64"
 upsert "$O" SNAPSHOT_CACHE_DIR "/mnt/snapshot-cache"
+# With ENVIRONMENT=prod the network pool otherwise takes the Consul-backed
+# path and blocks forever (we run Nomad-only, no Consul) — :5008 never binds.
+upsert "$O" USE_LOCAL_NAMESPACE_STORAGE "true"
 
 # ---------------------------------------------------------------------------
 # Build orchestrator + envd
 # ---------------------------------------------------------------------------
 make -C packages/envd build
-make -C packages/orchestrator build || make -C packages/orchestrator build-debug
+# build-local is a plain `go build`; the default `build` target needs Docker
+# BuildKit output support and fails on these nodes (exit 125).
+make -C packages/orchestrator build-local
 
 # ---------------------------------------------------------------------------
 # Nomad CLIENT — join the control server; lands in the "default" pool that the

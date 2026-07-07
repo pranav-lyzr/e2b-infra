@@ -123,5 +123,7 @@ variable "repo_url" {
 
 variable "repo_ref" {
   type    = string
-  default = "main"
+  # Must be a ref containing the Azure Blob/ACR backends and iac/provider-azure;
+  # upstream main has neither (nodes fail with "unknown storage provider: AzureBlob").
+  default = "azure-cluster"
 }

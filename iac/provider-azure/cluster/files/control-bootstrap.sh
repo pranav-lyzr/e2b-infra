@@ -88,9 +88,13 @@ make -C packages/client-proxy build
 # DB migrations + seed (once) against the managed data tier
 # ---------------------------------------------------------------------------
 if [[ ! -f /opt/e2b/.state/db.done ]]; then
-  POSTGRES_CONNECTION_STRING="$PG" make -C packages/db migrate-local || true
-  CLICKHOUSE_CONNECTION_STRING="$CH" make -C packages/clickhouse migrate-local || true
-  make -C packages/local-dev seed-database || true
+  # The migrate-local targets hardcode localhost, so run goose directly
+  # against the managed data tier. Fail loudly — everything depends on these.
+  (cd packages/db && GOOSE_DRIVER=postgres GOOSE_DBSTRING="$PG" \
+    go tool goose -table _migrations -dir migrations up)
+  (cd packages/clickhouse && GOOSE_DBSTRING="$CH" \
+    go tool goose -table _migrations -dir migrations clickhouse up)
+  POSTGRES_CONNECTION_STRING="$PG" make -C packages/local-dev seed-database
   touch /opt/e2b/.state/db.done
 fi
 
